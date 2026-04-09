@@ -1,0 +1,2039 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sistem Laporan Kerusakan Mesin QR</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Exo+2:wght@500;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    integrity="sha512-SnH5WK+bZxgPHs44uWix+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkR4j8R+W9h5U9b2Q1zYx04hM6QfQY8+4L9g=="
+    crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg-primary: #1a1a2e;
+      --bg-secondary: #16213e;
+      --accent: #ff6b35;
+      --warning: #ffd60a;
+      --text-primary: #f6f7fb;
+      --text-secondary: #b9bfd4;
+      --danger: #ff3b30;
+      --medium: #ffd60a;
+      --light: #34c759;
+      --card-border: rgba(255, 255, 255, 0.1);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Source Sans 3", sans-serif;
+      color: var(--text-primary);
+      background: radial-gradient(circle at top right, #1f2a52 0%, var(--bg-primary) 45%, #12121f 100%);
+      min-height: 100vh;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4 {
+      font-family: "Exo 2", sans-serif;
+      margin: 0;
+      letter-spacing: 0.3px;
+    }
+
+    .app {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    .header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.15rem;
+      color: var(--text-primary);
+    }
+
+    .title i {
+      color: var(--accent);
+    }
+
+    .nav {
+      display: flex;
+      gap: 8px;
+    }
+
+    .nav-btn {
+      border: 1px solid var(--card-border);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-primary);
+      padding: 9px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: 0.2s ease;
+    }
+
+    .nav-btn.active,
+    .nav-btn:hover {
+      border-color: var(--accent);
+      background: rgba(255, 107, 53, 0.18);
+      transform: translateY(-1px);
+    }
+
+    .page {
+      display: none;
+      animation: fadeIn 0.28s ease;
+    }
+
+    .page.active {
+      display: block;
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 16px;
+      backdrop-filter: blur(3px);
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.24);
+    }
+
+    .scanner-wrap {
+      display: grid;
+      gap: 14px;
+    }
+
+    .video-frame {
+      position: relative;
+      overflow: hidden;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: #000;
+      min-height: 280px;
+    }
+
+    #qrVideo {
+      width: 100%;
+      height: min(72vh, 480px);
+      object-fit: cover;
+      display: block;
+    }
+
+    .scanner-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      border: 2px dashed rgba(255, 214, 10, 0.65);
+      margin: 8%;
+      border-radius: 14px;
+    }
+
+    .laser {
+      position: absolute;
+      left: 8%;
+      right: 8%;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      box-shadow: 0 0 12px var(--accent);
+      animation: laserMove 2s ease-in-out infinite;
+      border-radius: 99px;
+      pointer-events: none;
+    }
+
+    .scan-success {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: rgba(52, 199, 89, 0.22);
+      opacity: 0;
+      transition: opacity 0.25s ease;
+      pointer-events: none;
+    }
+
+    .scan-success.show {
+      opacity: 1;
+    }
+
+    .scan-success i {
+      color: #fff;
+      font-size: 64px;
+      filter: drop-shadow(0 0 12px rgba(52, 199, 89, 0.8));
+      animation: popIn 0.35s ease;
+    }
+
+    .status-text {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      margin-top: 6px;
+      min-height: 20px;
+    }
+
+    .simulate-box {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: 1fr auto;
+    }
+
+    .field,
+    select,
+    textarea,
+    input[type="text"],
+    input[type="file"],
+    input[type="datetime-local"],
+    input[type="date"] {
+      width: 100%;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(10, 14, 31, 0.72);
+      color: var(--text-primary);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-family: inherit;
+      font-size: 0.98rem;
+    }
+
+    textarea {
+      min-height: 110px;
+      resize: vertical;
+    }
+
+    .btn {
+      border: none;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 700;
+      padding: 10px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: 0.2s ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.08);
+    }
+
+    .btn.secondary {
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid var(--card-border);
+    }
+
+    .btn.warning {
+      background: #9e7a00;
+      color: #fff;
+    }
+
+    .form-grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-top: 10px;
+    }
+
+    .full {
+      grid-column: 1 / -1;
+    }
+
+    .machine-card {
+      display: grid;
+      gap: 6px;
+      margin-bottom: 12px;
+      border-left: 4px solid var(--accent);
+    }
+
+    .machine-top {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    .badge.active {
+      background: rgba(52, 199, 89, 0.2);
+      border: 1px solid rgba(52, 199, 89, 0.5);
+      color: #8ff0a4;
+    }
+
+    .badge.repair {
+      background: rgba(255, 214, 10, 0.18);
+      border: 1px solid rgba(255, 214, 10, 0.45);
+      color: #ffe98f;
+    }
+
+    .label {
+      font-weight: 700;
+      display: block;
+      margin-bottom: 4px;
+      font-size: 0.94rem;
+      color: #d8def4;
+    }
+
+    .radio-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 5px;
+    }
+
+    .radio-pill {
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 999px;
+      padding: 7px 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .radio-pill input {
+      width: auto;
+      margin: 0;
+      accent-color: var(--accent);
+    }
+
+    .submit-btn {
+      width: 100%;
+      margin-top: 6px;
+      padding: 12px;
+      font-size: 1rem;
+    }
+
+    .submit-btn.sending {
+      animation: submitPulse 0.5s ease-in-out 2;
+    }
+
+    .summary-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 8px;
+      color: var(--text-primary);
+    }
+
+    .summary-item {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 10px;
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 8px;
+    }
+
+    .ticket {
+      font-family: "Exo 2", sans-serif;
+      font-size: 1.15rem;
+      color: var(--warning);
+      margin-top: 8px;
+    }
+
+    .filter-row {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-bottom: 12px;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 900px;
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th,
+    td {
+      text-align: left;
+      padding: 10px 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 0.92rem;
+      vertical-align: top;
+    }
+
+    th {
+      background: rgba(255, 255, 255, 0.08);
+      font-family: "Exo 2", sans-serif;
+      letter-spacing: 0.2px;
+    }
+
+    .sev {
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .sev.kritis {
+      color: #ff918c;
+    }
+
+    .sev.sedang {
+      color: #ffe27a;
+    }
+
+    .sev.ringan {
+      color: #95f0a9;
+    }
+
+    .status-chip {
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      border: 1px solid transparent;
+    }
+
+    .status-pending {
+      background: rgba(255, 214, 10, 0.16);
+      border-color: rgba(255, 214, 10, 0.5);
+      color: #ffe98f;
+    }
+
+    .status-proses {
+      background: rgba(255, 107, 53, 0.2);
+      border-color: rgba(255, 107, 53, 0.55);
+      color: #ffb39a;
+    }
+
+    .status-selesai {
+      background: rgba(52, 199, 89, 0.2);
+      border-color: rgba(52, 199, 89, 0.5);
+      color: #9ef3b2;
+    }
+
+    .admin-note {
+      margin-top: 4px;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      line-height: 1.35;
+    }
+
+    .admin-actions {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      min-width: 230px;
+    }
+
+    .admin-actions .btn {
+      width: 100%;
+      padding: 8px 10px;
+      font-size: 0.85rem;
+    }
+
+    .admin-auth-wrap {
+      position: relative;
+      max-width: 480px;
+      margin: 40px auto;
+      padding: 0;
+    }
+
+    .login-card {
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 40px 35px;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .login-card::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(255, 107, 53, 0.15) 0%, transparent 70%);
+      animation: loginGlow 8s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    @keyframes loginGlow {
+
+      0%,
+      100% {
+        transform: translate(0, 0) scale(1);
+      }
+
+      50% {
+        transform: translate(30px, 20px) scale(1.1);
+      }
+    }
+
+    .login-icon {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 24px;
+      background: linear-gradient(135deg, var(--accent) 0%, #ff8c5a 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      color: #fff;
+      box-shadow: 0 8px 24px rgba(255, 107, 53, 0.4);
+      position: relative;
+      z-index: 1;
+      animation: iconFloat 3s ease-in-out infinite;
+    }
+
+    @keyframes iconFloat {
+
+      0%,
+      100% {
+        transform: translateY(0);
+      }
+
+      50% {
+        transform: translateY(-8px);
+      }
+    }
+
+    .admin-auth-header {
+      text-align: center;
+      margin-bottom: 32px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .admin-auth-header h3 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .admin-auth-header .muted {
+      font-size: 0.95rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .admin-auth-form {
+      display: grid;
+      gap: 18px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .admin-auth-form input {
+      width: 100%;
+      padding: 14px 18px;
+      border: 2px solid rgba(255, 255, 255, 0.15);
+      background: rgba(10, 14, 31, 0.6);
+      color: var(--text-primary);
+      border-radius: 12px;
+      font-size: 1rem;
+      font-family: inherit;
+      transition: all 0.3s ease;
+      backdrop-filter: blur(10px);
+    }
+
+    .admin-auth-form input:focus {
+      outline: none;
+      border-color: var(--accent);
+      background: rgba(10, 14, 31, 0.8);
+      box-shadow: 0 0 0 4px rgba(255, 107, 53, 0.15);
+      transform: translateY(-2px);
+    }
+
+    .admin-auth-form input::placeholder {
+      color: rgba(185, 191, 212, 0.6);
+    }
+
+    .admin-auth-form .btn {
+      width: 100%;
+      padding: 16px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--accent) 0%, #ff8c5a 100%);
+      color: #fff;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 8px 20px rgba(255, 107, 53, 0.35);
+      position: relative;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .admin-auth-form .btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+      transition: left 0.5s ease;
+    }
+
+    .admin-auth-form .btn:hover::before {
+      left: 100%;
+    }
+
+    .admin-auth-form .btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 28px rgba(255, 107, 53, 0.45);
+    }
+
+    .admin-auth-form .btn:active {
+      transform: translateY(-1px);
+    }
+
+    .login-divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 24px 0;
+      position: relative;
+      z-index: 1;
+    }
+
+    .login-divider::before,
+    .login-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--card-border), transparent);
+    }
+
+    .login-divider span {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .login-features {
+      display: grid;
+      gap: 12px;
+      margin-top: 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .login-feature-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .login-feature-item i {
+      color: var(--accent);
+      font-size: 1.2rem;
+      width: 24px;
+      text-align: center;
+    }
+
+    .login-feature-item span {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+    }
+
+    .admin-topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .admin-auth-text {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+    }
+
+    .tech-chip {
+      display: inline-flex;
+      gap: 5px;
+      align-items: center;
+      border: 1px solid var(--card-border);
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+
+    .toast {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      background: #13301f;
+      color: #c8ffd8;
+      border: 1px solid rgba(52, 199, 89, 0.5);
+      padding: 10px 14px;
+      border-radius: 10px;
+      opacity: 0;
+      transform: translateY(10px);
+      pointer-events: none;
+      transition: 0.25s ease;
+      z-index: 90;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .muted {
+      color: var(--text-secondary);
+    }
+
+    @keyframes laserMove {
+      0% {
+        top: 15%;
+      }
+
+      50% {
+        top: 82%;
+      }
+
+      100% {
+        top: 15%;
+      }
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes popIn {
+      0% {
+        transform: scale(0.6);
+        opacity: 0.5;
+      }
+
+      100% {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+
+    @keyframes submitPulse {
+      0% {
+        transform: scale(1);
+      }
+
+      50% {
+        transform: scale(0.985);
+      }
+
+      100% {
+        transform: scale(1);
+      }
+    }
+
+    @media (max-width: 860px) {
+
+      .form-grid,
+      .filter-row {
+        grid-template-columns: 1fr;
+      }
+
+      .summary-item {
+        grid-template-columns: 1fr;
+      }
+
+      .simulate-box {
+        grid-template-columns: 1fr;
+      }
+
+      .admin-actions {
+        min-width: auto;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <div class="header">
+      <div class="title"><i class="fa-solid fa-industry"></i> Sistem Pelaporan Kerusakan Mesin (QR)</div>
+      <div class="nav">
+        <button id="navScanner" class="nav-btn active"><i class="fa-solid fa-qrcode"></i> Scanner</button>
+        <button id="navDashboard" class="nav-btn"><i class="fa-solid fa-table-list"></i> Dashboard</button>
+        <button id="navAdmin" class="nav-btn"><i class="fa-solid fa-user-shield"></i> Admin</button>
+      </div>
+    </div>
+
+    <section id="scannerPage" class="page active">
+      <div class="card scanner-wrap">
+        <h2><i class="fa-solid fa-camera"></i> Scanner QR Code Mesin</h2>
+        <div class="video-frame">
+          <video id="qrVideo" autoplay playsinline muted></video>
+          <div class="scanner-overlay"></div>
+          <div class="laser"></div>
+          <div id="scanSuccess" class="scan-success"><i class="fa-solid fa-circle-check"></i></div>
+        </div>
+        <div id="scanStatus" class="status-text">Mengaktifkan kamera...</div>
+        <div class="simulate-box">
+          <select id="simMachineSelect"></select>
+          <button id="simulateBtn" class="btn secondary"><i class="fa-solid fa-flask"></i> Simulasi Scan QR</button>
+        </div>
+        <div class="muted">Tip: jika kamera diblokir browser, gunakan fitur simulasi untuk testing.</div>
+      </div>
+    </section>
+
+    <section id="formPage" class="page">
+      <form id="reportForm" class="card" novalidate>
+        <h2><i class="fa-solid fa-file-pen"></i> Form Laporan Kerusakan</h2>
+
+        <div class="machine-card card" style="padding: 12px;">
+          <div class="machine-top">
+            <h3 id="machineTitle">-</h3>
+            <span id="machineBadge" class="badge active"><i class="fa-solid fa-circle"></i> Aktif</span>
+          </div>
+          <div class="muted">ID Mesin: <strong id="machineIdText">-</strong></div>
+          <div class="muted">Area: <strong id="machineAreaText">-</strong></div>
+        </div>
+
+        <div class="form-grid">
+          <div>
+            <label class="label" for="reportDateTime">Tanggal & Waktu</label>
+            <input id="reportDateTime" type="text" readonly>
+          </div>
+          <div>
+            <label class="label" for="reporterName">Nama Pelapor</label>
+            <input id="reporterName" type="text" required placeholder="Masukkan nama pelapor">
+          </div>
+
+          <div>
+            <label class="label" for="employeeId">NIK / ID Karyawan</label>
+            <input id="employeeId" type="text" required placeholder="Contoh: EMP-1204">
+          </div>
+          <div>
+            <label class="label" for="damageType">Jenis Kerusakan</label>
+            <select id="damageType" required>
+              <option value="">Pilih jenis kerusakan</option>
+              <option>Kerusakan Mekanik</option>
+              <option>Kerusakan Elektrik</option>
+              <option>Kerusakan Pneumatik</option>
+              <option>Kerusakan Hidrolik</option>
+              <option>Lainnya</option>
+            </select>
+          </div>
+
+          <div class="full">
+            <span class="label">Tingkat Keparahan</span>
+            <div class="radio-group">
+              <label class="radio-pill"><input type="radio" name="severity" value="Kritis" required> 🔴 Kritis</label>
+              <label class="radio-pill"><input type="radio" name="severity" value="Sedang" required> 🟡 Sedang</label>
+              <label class="radio-pill"><input type="radio" name="severity" value="Ringan" required> 🟢 Ringan</label>
+            </div>
+          </div>
+
+          <div class="full">
+            <label class="label" for="description">Deskripsi Kerusakan</label>
+            <textarea id="description" required placeholder="Jelaskan gejala/masalah yang terjadi"></textarea>
+          </div>
+
+          <div class="full">
+            <label class="label" for="photoUpload">Upload Foto Kerusakan (Opsional)</label>
+            <input id="photoUpload" type="file" accept="image/*">
+          </div>
+        </div>
+
+        <button id="submitBtn" type="submit" class="btn submit-btn"><i class="fa-solid fa-paper-plane"></i> Kirim
+          Laporan</button>
+      </form>
+    </section>
+
+    <section id="confirmPage" class="page">
+      <div class="card">
+        <h2><i class="fa-solid fa-circle-check"></i> Laporan Berhasil Dikirim</h2>
+        <div id="ticketNumber" class="ticket"></div>
+        <div id="summaryList" class="summary-list"></div>
+        <div style="display:flex; gap:10px; flex-wrap: wrap; margin-top: 14px;">
+          <button id="newReportBtn" class="btn"><i class="fa-solid fa-qrcode"></i> Buat Laporan Baru</button>
+          <button id="toDashboardBtn" class="btn secondary"><i class="fa-solid fa-table-list"></i> Lihat
+            Dashboard</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="dashboardPage" class="page">
+      <div class="card">
+        <h2><i class="fa-solid fa-chart-column"></i> Dashboard Laporan</h2>
+
+        <div class="filter-row">
+          <select id="filterStatus">
+            <option value="">Semua Status</option>
+            <option value="Pending">Pending</option>
+            <option value="Proses">Proses</option>
+            <option value="Selesai">Selesai</option>
+          </select>
+          <select id="filterSeverity">
+            <option value="">Semua Keparahan</option>
+            <option value="Kritis">Kritis</option>
+            <option value="Sedang">Sedang</option>
+            <option value="Ringan">Ringan</option>
+          </select>
+          <input id="filterDate" type="date" title="Filter tanggal">
+          <div style="display:flex; gap:8px;">
+            <button id="exportTextBtn" class="btn secondary" style="flex:1;"><i class="fa-solid fa-file-lines"></i>
+              Export Teks</button>
+            <button id="printBtn" class="btn warning" style="flex:1;"><i class="fa-solid fa-print"></i> Print</button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Tiket</th>
+                <th>Waktu</th>
+                <th>Mesin</th>
+                <th>Pelapor</th>
+                <th>Jenis</th>
+                <th>Keparahan</th>
+                <th>Status</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="reportTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="adminPage" class="page">
+      <div class="card">
+        <h2><i class="fa-solid fa-user-shield"></i> Panel Admin Penanganan Laporan</h2>
+
+        <div id="adminAuthGate" class="admin-auth-wrap">
+          <div class="login-card">
+            <div class="login-icon">
+              <i class="fa-solid fa-user-shield"></i>
+            </div>
+            <div class="admin-auth-header">
+              <h3>Selamat Datang, Admin</h3>
+              <div class="muted">Silakan login untuk mengakses panel administrasi dan pengelolaan laporan</div>
+            </div>
+            <form id="adminLoginForm" class="admin-auth-form" novalidate>
+              <input id="adminUsername" type="email" placeholder="📧 Email admin" autocomplete="username" required>
+              <input id="adminPassword" type="password" placeholder="🔒 Password" autocomplete="current-password"
+                required>
+              <button type="submit" class="btn"><i class="fa-solid fa-right-to-bracket"></i> Login Admin</button>
+            </form>
+            <div class="login-divider">
+              <span>Fitur Admin</span>
+            </div>
+            <div class="login-features">
+              <div class="login-feature-item">
+                <i class="fa-solid fa-chart-line"></i>
+                <span>Dashboard laporan real-time</span>
+              </div>
+              <div class="login-feature-item">
+                <i class="fa-solid fa-user-gear"></i>
+                <span>Manajemen teknisi dan status</span>
+              </div>
+              <div class="login-feature-item">
+                <i class="fa-solid fa-bell"></i>
+                <span>Notifikasi maintenance otomatis</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="adminContent" style="display:none; margin-top: 10px;">
+          <div class="admin-topbar">
+            <div id="adminAuthText" class="admin-auth-text"></div>
+            <button id="adminLogoutBtn" class="btn secondary" type="button"><i
+                class="fa-solid fa-right-from-bracket"></i> Logout</button>
+          </div>
+
+          <div class="filter-row">
+            <select id="adminFilterStatus">
+              <option value="">Semua Status</option>
+              <option value="Pending">Pending</option>
+              <option value="Proses">Proses</option>
+              <option value="Selesai">Selesai</option>
+            </select>
+            <select id="adminFilterTechnician">
+              <option value="">Semua Teknisi</option>
+            </select>
+            <input id="adminFilterDate" type="date" title="Filter tanggal laporan">
+            <div class="muted" style="display:flex; align-items:center; padding:0 4px;">
+              Admin bisa ubah status, kirim notifikasi maintenance, dan hubungi teknisi.
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tiket</th>
+                  <th>Mesin & Pelapor</th>
+                  <th>Status & Teknisi</th>
+                  <th>Aksi Admin</th>
+                </tr>
+              </thead>
+              <tbody id="adminTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <canvas id="scanCanvas" style="display:none;"></canvas>
+
+  <script>
+    const MACHINE_DATA = [
+      { id: "MESIN-001", name: "Mesin Bubut CNC", area: "Lantai Produksi A", machineStatus: "Aktif" },
+      { id: "MESIN-002", name: "Mesin Frais", area: "Lantai Produksi A", machineStatus: "Aktif" },
+      { id: "MESIN-003", name: "Kompresor Udara", area: "Utility Room", machineStatus: "Aktif" },
+      { id: "MESIN-004", name: "Mesin Las MIG", area: "Lantai Produksi B", machineStatus: "Dalam Perbaikan" },
+      { id: "MESIN-005", name: "Conveyor Belt", area: "Assembly Line", machineStatus: "Aktif" }
+    ];
+
+    const SUPABASE_URL = "https://akolyllhcrgjeuktiljg.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFrb2x5bGxoY3JnamV1a3RpbGpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NzkxNjAsImV4cCI6MjA5MTI1NTE2MH0.6gVVUfnuV3Eh9Kfq4PH-eSl_qL1K_iFV_I22lcp11HY";
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const STORAGE_KEY = "machine_damage_reports_v1";
+    const STATUS_CYCLE = ["Pending", "Proses", "Selesai"];
+
+    const scannerPage = document.getElementById("scannerPage");
+    const formPage = document.getElementById("formPage");
+    const confirmPage = document.getElementById("confirmPage");
+    const dashboardPage = document.getElementById("dashboardPage");
+    const adminPage = document.getElementById("adminPage");
+
+    const navScanner = document.getElementById("navScanner");
+    const navDashboard = document.getElementById("navDashboard");
+    const navAdmin = document.getElementById("navAdmin");
+
+    const qrVideo = document.getElementById("qrVideo");
+    const scanCanvas = document.getElementById("scanCanvas");
+    const scanStatus = document.getElementById("scanStatus");
+    const scanSuccess = document.getElementById("scanSuccess");
+
+    const simMachineSelect = document.getElementById("simMachineSelect");
+    const simulateBtn = document.getElementById("simulateBtn");
+
+    const reportForm = document.getElementById("reportForm");
+    const reportDateTime = document.getElementById("reportDateTime");
+    const reporterName = document.getElementById("reporterName");
+    const employeeId = document.getElementById("employeeId");
+    const damageType = document.getElementById("damageType");
+    const description = document.getElementById("description");
+    const photoUpload = document.getElementById("photoUpload");
+    const submitBtn = document.getElementById("submitBtn");
+
+    const machineTitle = document.getElementById("machineTitle");
+    const machineBadge = document.getElementById("machineBadge");
+    const machineIdText = document.getElementById("machineIdText");
+    const machineAreaText = document.getElementById("machineAreaText");
+
+    const ticketNumber = document.getElementById("ticketNumber");
+    const summaryList = document.getElementById("summaryList");
+    const newReportBtn = document.getElementById("newReportBtn");
+    const toDashboardBtn = document.getElementById("toDashboardBtn");
+
+    const filterStatus = document.getElementById("filterStatus");
+    const filterSeverity = document.getElementById("filterSeverity");
+    const filterDate = document.getElementById("filterDate");
+    const exportTextBtn = document.getElementById("exportTextBtn");
+    const printBtn = document.getElementById("printBtn");
+    const reportTableBody = document.getElementById("reportTableBody");
+
+    const adminFilterStatus = document.getElementById("adminFilterStatus");
+    const adminFilterTechnician = document.getElementById("adminFilterTechnician");
+    const adminFilterDate = document.getElementById("adminFilterDate");
+    const adminTableBody = document.getElementById("adminTableBody");
+    const adminAuthGate = document.getElementById("adminAuthGate");
+    const adminContent = document.getElementById("adminContent");
+    const adminLoginForm = document.getElementById("adminLoginForm");
+    const adminUsername = document.getElementById("adminUsername");
+    const adminPassword = document.getElementById("adminPassword");
+    const adminLogoutBtn = document.getElementById("adminLogoutBtn");
+    const adminAuthText = document.getElementById("adminAuthText");
+
+    const toast = document.getElementById("toast");
+    const canUseJsQr = typeof window.jsQR === "function";
+
+    const TECHNICIANS = [
+      { id: "TECH-001", name: "Budi Prasetyo", phone: "6281234500001" },
+      { id: "TECH-002", name: "Rina Wulandari", phone: "6281234500002" },
+      { id: "TECH-003", name: "Agus Setiawan", phone: "6281234500003" }
+    ];
+
+    let reports = [];
+    let activeMachine = null;
+    let currentStream = null;
+    let scanning = false;
+    let animationFrameId = null;
+    let dbReady = false;
+    let currentAdminUser = "";
+
+    async function init() {
+      populateSimulationSelect();
+      populateTechnicianFilter();
+      await syncAdminSession();
+      renderAdminAccessState();
+
+      sb.auth.onAuthStateChange((_event, session) => {
+        currentAdminUser = session?.user?.email || "";
+        renderAdminAccessState();
+      });
+
+      await loadReports();
+      bindEvents();
+      renderDashboard();
+      renderAdminReports();
+      showPage("scanner");
+
+      if (!canUseJsQr) {
+        scanStatus.textContent = "Scanner QR offline. Gunakan Simulasi Scan QR untuk melanjutkan.";
+      } else {
+        startScanner();
+      }
+    }
+
+    function bindEvents() {
+      navScanner.addEventListener("click", () => showPage("scanner"));
+      navDashboard.addEventListener("click", () => showPage("dashboard"));
+      navAdmin.addEventListener("click", () => showPage("admin"));
+
+      simulateBtn.addEventListener("click", () => {
+        const selectedId = simMachineSelect.value;
+        fetchMachineData(selectedId);
+      });
+
+      reportForm.addEventListener("submit", handleSubmitReport);
+
+      newReportBtn.addEventListener("click", () => {
+        reportForm.reset();
+        activeMachine = null;
+        showPage("scanner");
+      });
+
+      toDashboardBtn.addEventListener("click", () => showPage("dashboard"));
+
+      [filterStatus, filterSeverity, filterDate].forEach(el => {
+        el.addEventListener("input", renderDashboard);
+      });
+
+      [adminFilterStatus, adminFilterTechnician, adminFilterDate].forEach(el => {
+        el.addEventListener("input", renderAdminReports);
+      });
+
+      adminLoginForm.addEventListener("submit", handleAdminLogin);
+      adminLogoutBtn.addEventListener("click", logoutAdmin);
+
+      exportTextBtn.addEventListener("click", exportReportsAsText);
+      printBtn.addEventListener("click", () => window.print());
+    }
+
+    function populateSimulationSelect() {
+      simMachineSelect.innerHTML = MACHINE_DATA
+        .map(machine => `<option value="${machine.id}">${machine.id} - ${machine.name}</option>`)
+        .join("");
+    }
+
+    function populateTechnicianFilter() {
+      adminFilterTechnician.innerHTML += TECHNICIANS
+        .map(tech => `<option value="${tech.id}">${tech.name}</option>`)
+        .join("");
+    }
+
+    function showPage(page) {
+      [scannerPage, formPage, confirmPage, dashboardPage, adminPage].forEach(p => p.classList.remove("active"));
+      [navScanner, navDashboard, navAdmin].forEach(btn => btn.classList.remove("active"));
+
+      if (page === "scanner") {
+        scannerPage.classList.add("active");
+        navScanner.classList.add("active");
+        startScanner();
+      } else {
+        stopScanner();
+      }
+
+      if (page === "form") {
+        formPage.classList.add("active");
+        navScanner.classList.add("active");
+      }
+
+      if (page === "confirm") {
+        confirmPage.classList.add("active");
+        navScanner.classList.add("active");
+      }
+
+      if (page === "dashboard") {
+        dashboardPage.classList.add("active");
+        navDashboard.classList.add("active");
+        renderDashboard();
+      }
+
+      if (page === "admin") {
+        if (!isAdminAuthenticated()) {
+          renderAdminAccessState();
+          adminPage.classList.add("active");
+          navAdmin.classList.add("active");
+          showToast("Login admin diperlukan", false);
+          return;
+        }
+
+        adminPage.classList.add("active");
+        navAdmin.classList.add("active");
+        renderAdminAccessState();
+        renderAdminReports();
+      }
+    }
+
+    async function syncAdminSession() {
+      try {
+        const { data, error } = await sb.auth.getSession();
+        if (error) throw error;
+        currentAdminUser = data?.session?.user?.email || "";
+      } catch (error) {
+        currentAdminUser = "";
+      }
+    }
+
+    function isAdminAuthenticated() {
+      return Boolean(currentAdminUser);
+    }
+
+    function renderAdminAccessState() {
+      const loggedIn = isAdminAuthenticated();
+      adminAuthGate.style.display = loggedIn ? "none" : "block";
+      adminContent.style.display = loggedIn ? "block" : "none";
+      adminAuthText.textContent = loggedIn ? `Login sebagai: ${currentAdminUser}` : "";
+    }
+
+    async function handleAdminLogin(event) {
+      event.preventDefault();
+
+      const email = adminUsername.value.trim();
+      const password = adminPassword.value;
+
+      try {
+        const { data, error } = await sb.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+
+        currentAdminUser = data?.user?.email || email;
+        adminLoginForm.reset();
+        renderAdminAccessState();
+        renderAdminReports();
+        showToast("Login admin berhasil", true);
+      } catch (error) {
+        showToast("Login admin gagal: " + error.message, false);
+      }
+    }
+
+    async function logoutAdmin() {
+      try {
+        const { error } = await sb.auth.signOut();
+        if (error) throw error;
+      } catch (error) {
+      }
+
+      currentAdminUser = "";
+      renderAdminAccessState();
+      showPage("scanner");
+      showToast("Logout admin berhasil", true);
+    }
+
+    function ensureAdminAccess() {
+      if (isAdminAuthenticated()) return true;
+      showToast("Aksi ini hanya untuk admin yang login", false);
+      showPage("admin");
+      return false;
+    }
+
+    async function startScanner() {
+      if (scanning) return;
+      if (!canUseJsQr) {
+        scanStatus.textContent = "Scanner QR tidak tersedia. Gunakan Simulasi Scan QR.";
+        return;
+      }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        scanStatus.textContent = "Browser tidak mendukung akses kamera. Gunakan Simulasi Scan QR.";
+        return;
+      }
+
+      try {
+        scanStatus.textContent = "Mengaktifkan kamera...";
+        currentStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } },
+          audio: false
+        });
+
+        qrVideo.srcObject = currentStream;
+        await qrVideo.play();
+        scanning = true;
+        scanStatus.textContent = "Arahkan kamera ke QR Code mesin...";
+        scanLoop();
+      } catch (error) {
+        scanStatus.textContent = "Kamera gagal diakses. Izinkan permission atau gunakan simulasi scan.";
+      }
+    }
+
+    function stopScanner() {
+      scanning = false;
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+        currentStream = null;
+      }
+    }
+
+    function scanLoop() {
+      if (!scanning) return;
+
+      const canvasContext = scanCanvas.getContext("2d", { willReadFrequently: true });
+      if (qrVideo.readyState === qrVideo.HAVE_ENOUGH_DATA) {
+        scanCanvas.width = qrVideo.videoWidth;
+        scanCanvas.height = qrVideo.videoHeight;
+        canvasContext.drawImage(qrVideo, 0, 0, scanCanvas.width, scanCanvas.height);
+
+        const imageData = canvasContext.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: "dontInvert"
+        });
+
+        if (code && code.data) {
+          onScanSuccess(code.data.trim(), code);
+          return;
+        }
+      }
+
+      animationFrameId = requestAnimationFrame(scanLoop);
+    }
+
+    function onScanSuccess(decodedText, decodedResult) {
+      try {
+        const urlParams = new URLSearchParams(new URL(decodedText).search);
+        const machineId = urlParams.get("id");
+
+        if (machineId && machineId.trim()) {
+          fetchMachineData(machineId);
+          return;
+        }
+      } catch (error) {
+      }
+
+      fetchMachineData(decodedText);
+    }
+
+    function fetchMachineData(machineId) {
+      handleQrResult(machineId);
+    }
+
+    function handleQrResult(rawText) {
+      const machineId = extractMachineIdFromQr(rawText);
+      const machine = MACHINE_DATA.find(item => item.id.toUpperCase() === machineId);
+
+      if (!machine) {
+        scanStatus.textContent = `QR tidak dikenali (${machineId}). Pastikan QR berisi ID mesin valid.`;
+        showToast("QR tidak valid", false);
+        return;
+      }
+
+      activeMachine = machine;
+      scanStatus.textContent = `QR terbaca: ${machine.id}`;
+      scanSuccess.classList.add("show");
+      stopScanner();
+
+      setTimeout(() => {
+        scanSuccess.classList.remove("show");
+        prepareFormForMachine(machine);
+        showPage("form");
+      }, 700);
+    }
+
+    function extractMachineIdFromQr(rawText) {
+      const text = String(rawText || "").trim();
+      if (!text) return "";
+
+      const upperText = text.toUpperCase();
+      if (MACHINE_DATA.some(item => item.id.toUpperCase() === upperText)) {
+        return upperText;
+      }
+
+      try {
+        const parsed = JSON.parse(text);
+        if (parsed && typeof parsed === "object") {
+          const value = parsed.machineId || parsed.machine_id || parsed.id;
+          if (typeof value === "string" && value.trim()) {
+            return value.trim().toUpperCase();
+          }
+        }
+      } catch (error) {
+      }
+
+      try {
+        const url = new URL(text);
+        const fromQuery = url.searchParams.get("machineId") || url.searchParams.get("machine_id") || url.searchParams.get("id");
+        if (fromQuery && fromQuery.trim()) {
+          return fromQuery.trim().toUpperCase();
+        }
+
+        const pathMachine = url.pathname.match(/MESIN-\d+/i);
+        if (pathMachine) {
+          return pathMachine[0].toUpperCase();
+        }
+      } catch (error) {
+      }
+
+      const machineFromText = text.match(/MESIN-\d+/i);
+      if (machineFromText) {
+        return machineFromText[0].toUpperCase();
+      }
+
+      return upperText;
+    }
+
+    function prepareFormForMachine(machine) {
+      const now = new Date();
+      reportDateTime.value = formatDateTime(now);
+
+      machineTitle.textContent = machine.name;
+      machineIdText.textContent = machine.id;
+      machineAreaText.textContent = machine.area;
+
+      const isActive = machine.machineStatus === "Aktif";
+      machineBadge.className = `badge ${isActive ? "active" : "repair"}`;
+      machineBadge.innerHTML = isActive
+        ? '<i class="fa-solid fa-circle"></i> Aktif'
+        : '<i class="fa-solid fa-wrench"></i> Dalam Perbaikan';
+    }
+
+    async function handleSubmitReport(event) {
+      event.preventDefault();
+
+      if (!activeMachine) {
+        showToast("Silakan scan QR mesin terlebih dahulu", false);
+        showPage("scanner");
+        return;
+      }
+
+      const severityInput = document.querySelector('input[name="severity"]:checked');
+      const valid = reportForm.checkValidity() && Boolean(severityInput);
+
+      if (!valid) {
+        reportForm.reportValidity();
+        showToast("Mohon lengkapi data form", false);
+        return;
+      }
+
+      submitBtn.classList.add("sending");
+
+      const now = new Date();
+      const ticket = generateTicketNumber(now, reports);
+      const photoName = photoUpload.files[0] ? photoUpload.files[0].name : "-";
+
+      const reportData = {
+        ticket: ticket,
+        machine_id: activeMachine.id,
+        machine_name: activeMachine.name,
+        machine_area: activeMachine.area,
+        machine_status: activeMachine.machineStatus,
+        reporter_name: reporterName.value.trim(),
+        employee_id: employeeId.value.trim(),
+        damage_type: damageType.value,
+        severity: severityInput.value,
+        description: description.value.trim(),
+        photo_name: photoName,
+        status: "Pending",
+        assigned_technician_id: "",
+        maintenance_notification: "",
+        maintenance_notified_at: "",
+        technician_contacted_at: ""
+      };
+
+      try {
+        const { error } = await sb.from("reports").insert([reportData]).select();
+        if (error) throw error;
+
+        // Fallback: save to localStorage if Supabase fails
+        saveToLocalStorage(reportData);
+
+        const report = {
+          ...reportData,
+          createdAt: now.toISOString(),
+          createdAtText: formatDateTime(now),
+          machineId: reportData.machine_id,
+          machineName: reportData.machine_name,
+          machineArea: reportData.machine_area,
+          machineStatus: reportData.machine_status,
+          reporterName: reportData.reporter_name,
+          employeeId: reportData.employee_id,
+          damageType: reportData.damage_type,
+          photoName: reportData.photo_name,
+          assignedTechnicianId: reportData.assigned_technician_id,
+          maintenanceNotification: reportData.maintenance_notification,
+          maintenanceNotifiedAt: reportData.maintenance_notified_at,
+          technicianContactedAt: reportData.technician_contacted_at
+        };
+
+        reports.unshift(report);
+        renderConfirmation(report);
+        await loadReports();
+        renderDashboard();
+        renderAdminReports();
+
+        setTimeout(() => {
+          submitBtn.classList.remove("sending");
+          showPage("confirm");
+          showToast("Laporan berhasil dikirim", true);
+        }, 380);
+      } catch (error) {
+        console.error("Error submitting report:", error);
+        submitBtn.classList.remove("sending");
+        showToast("Gagal mengirim laporan: " + error.message, false);
+      }
+    }
+
+    function renderConfirmation(report) {
+      ticketNumber.textContent = `Nomor Tiket: ${report.ticket}`;
+
+      const summary = [
+        ["Mesin", `${report.machineId} - ${report.machineName}`],
+        ["Area", report.machineArea],
+        ["Waktu", report.createdAtText],
+        ["Pelapor", `${report.reporterName} (${report.employeeId})`],
+        ["Jenis", report.damageType],
+        ["Keparahan", report.severity],
+        ["Status", report.status],
+        ["Foto", report.photoName],
+        ["Deskripsi", report.description]
+      ];
+
+      summaryList.innerHTML = summary
+        .map(([label, value]) => `<div class="summary-item"><strong>${label}</strong><span>${escapeHtml(value)}</span></div>`)
+        .join("");
+    }
+
+    async function loadReports() {
+      try {
+        const { data, error } = await sb.from("reports").select("*").order("created_at", { ascending: false });
+        if (error) {
+          console.warn("Supabase error, using localStorage fallback:", error.message);
+          loadReportsFromLocalStorage();
+          return;
+        }
+        reports = Array.isArray(data) ? data.map(dbRowToReport) : [];
+        dbReady = true;
+      } catch (error) {
+        console.error("Error loading reports:", error);
+        loadReportsFromLocalStorage();
+      }
+    }
+
+    function loadReportsFromLocalStorage() {
+      try {
+        const localData = localStorage.getItem(STORAGE_KEY);
+        reports = localData ? JSON.parse(localData) : [];
+      } catch (error) {
+        console.error("Error loading from localStorage:", error);
+        reports = [];
+      }
+      dbReady = true;
+    }
+
+    function dbRowToReport(row) {
+      return {
+        ticket: String(row.ticket || "-"),
+        createdAt: String(row.created_at || new Date().toISOString()),
+        createdAtText: formatDateTime(new Date(row.created_at)),
+        machineId: String(row.machine_id || "-"),
+        machineName: String(row.machine_name || "-"),
+        machineArea: String(row.machine_area || "-"),
+        machineStatus: String(row.machine_status || "Aktif"),
+        reporterName: String(row.reporter_name || "-"),
+        employeeId: String(row.employee_id || "-"),
+        damageType: String(row.damage_type || "-"),
+        severity: ["Kritis", "Sedang", "Ringan"].includes(row.severity) ? row.severity : "Ringan",
+        description: String(row.description || "-"),
+        photoName: String(row.photo_name || "-"),
+        status: STATUS_CYCLE.includes(row.status) ? row.status : "Pending",
+        assignedTechnicianId: String(row.assigned_technician_id || ""),
+        maintenanceNotification: String(row.maintenance_notification || ""),
+        maintenanceNotifiedAt: String(row.maintenance_notified_at || ""),
+        technicianContactedAt: String(row.technician_contacted_at || "")
+      };
+    }
+
+    function saveReports() {
+      // Save to localStorage as backup
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(reports));
+      } catch (error) {
+        console.error("Error saving to localStorage:", error);
+      }
+    }
+
+    function saveToLocalStorage(reportData) {
+      try {
+        const localData = localStorage.getItem(STORAGE_KEY);
+        const localReports = localData ? JSON.parse(localData) : [];
+        localReports.unshift(reportData);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(localReports));
+      } catch (error) {
+        console.error("Error saving to localStorage:", error);
+      }
+    }
+
+    function generateTicketNumber(dateObj, allReports) {
+      const y = dateObj.getFullYear();
+      const m = String(dateObj.getMonth() + 1).padStart(2, "0");
+      const d = String(dateObj.getDate()).padStart(2, "0");
+      const datePart = `${y}${m}${d}`;
+
+      const todayCount = allReports.filter(report => {
+        const reportDate = new Date(report.createdAt);
+        const repPart = `${reportDate.getFullYear()}${String(reportDate.getMonth() + 1).padStart(2, "0")}${String(reportDate.getDate()).padStart(2, "0")}`;
+        return repPart === datePart;
+      }).length;
+
+      const seq = String(todayCount + 1).padStart(4, "0");
+      return `RPT-${datePart}-${seq}`;
+    }
+
+    function getFilteredReports() {
+      const statusVal = filterStatus.value;
+      const sevVal = filterSeverity.value;
+      const dateVal = filterDate.value;
+
+      return reports.filter(report => {
+        const sameStatus = !statusVal || report.status === statusVal;
+        const sameSeverity = !sevVal || report.severity === sevVal;
+        const reportDate = new Date(report.createdAt);
+        const reportDateStr = `${reportDate.getFullYear()}-${String(reportDate.getMonth() + 1).padStart(2, "0")}-${String(reportDate.getDate()).padStart(2, "0")}`;
+        const sameDate = !dateVal || reportDateStr === dateVal;
+
+        return sameStatus && sameSeverity && sameDate;
+      });
+    }
+
+    function renderDashboard() {
+      const filtered = getFilteredReports();
+
+      if (!filtered.length) {
+        reportTableBody.innerHTML = `<tr><td colspan="8" class="muted">Belum ada data laporan sesuai filter.</td></tr>`;
+        return;
+      }
+
+      reportTableBody.innerHTML = filtered.map(report => {
+        const severityClass = report.severity.toLowerCase();
+        const statusClass = report.status.toLowerCase();
+
+        return `
+          <tr>
+            <td>${report.ticket}</td>
+            <td>${report.createdAtText}</td>
+            <td>
+              <strong>${report.machineId}</strong><br>
+                <span class="muted">${report.machineName}</span><br>
+                  <span class="muted">${report.machineArea}</span>
+                </td>
+                <td>${escapeHtml(report.reporterName)}<br><span class="muted">${escapeHtml(report.employeeId)}</span></td>
+                <td>${report.damageType}</td>
+                <td><span class="sev ${severityClass}">${severityEmoji(report.severity)} ${report.severity}</span></td>
+                <td><span class="status-chip status-${statusClass}">${report.status}</span></td>
+                <td>
+                  ${isAdminAuthenticated()
+            ? `<button class="btn secondary" style="padding:6px 10px;" onclick="cycleStatus('${report.ticket}')">Ubah Status</button>`
+            : `<span class="muted">Aksi admin</span>`
+          }
+                  ${report.maintenanceNotification
+            ? `<div class="admin-note"><strong>Notif Admin:</strong> ${escapeHtml(report.maintenanceNotification)}</div>`
+            : ""
+          }
+                </td>
+              </tr>
+              `;
+      }).join("");
+    }
+
+    function getAdminFilteredReports() {
+      const statusVal = adminFilterStatus.value;
+      const techVal = adminFilterTechnician.value;
+      const dateVal = adminFilterDate.value;
+
+      return reports.filter(report => {
+        const sameStatus = !statusVal || report.status === statusVal;
+        const sameTechnician = !techVal || report.assignedTechnicianId === techVal;
+
+        const reportDate = new Date(report.createdAt);
+        const reportDateStr = `${reportDate.getFullYear()}-${String(reportDate.getMonth() + 1).padStart(2, "0")}-${String(reportDate.getDate()).padStart(2, "0")}`;
+        const sameDate = !dateVal || reportDateStr === dateVal;
+
+        return sameStatus && sameTechnician && sameDate;
+      });
+    }
+
+    function renderAdminReports() {
+      const filtered = getAdminFilteredReports();
+
+      if (!filtered.length) {
+        adminTableBody.innerHTML = `<tr><td colspan="4" class="muted">Belum ada laporan untuk ditangani.</td></tr>`;
+        return;
+      }
+
+      adminTableBody.innerHTML = filtered.map(report => {
+        const statusClass = report.status.toLowerCase();
+        const assignedTech = TECHNICIANS.find(tech => tech.id === report.assignedTechnicianId);
+
+        return `
+              <tr>
+                <td>
+                  <strong>${report.ticket}</strong><br>
+                    <span class="muted">${report.createdAtText}</span>
+                </td>
+                <td>
+                  <strong>${report.machineId} - ${report.machineName}</strong><br>
+                    <span class="muted">${report.machineArea}</span><br>
+                      <span class="muted">Pelapor: ${escapeHtml(report.reporterName)} (${escapeHtml(report.employeeId)})</span><br>
+                        <span class="muted">Jenis: ${escapeHtml(report.damageType)} | ${severityEmoji(report.severity)} ${report.severity}</span>
+                      </td>
+                      <td>
+                        <span class="status-chip status-${statusClass}">${report.status}</span>
+                        <div style="margin-top:6px;">
+                          ${assignedTech ? `<span class="tech-chip"><i class="fa-solid fa-user-gear"></i> ${assignedTech.name}</span>` : '<span class="muted">Belum assign teknisi</span>'}
+                        </div>
+                        ${report.maintenanceNotifiedAt ? `<div class="admin-note">Notifikasi maintenance dikirim: ${report.maintenanceNotifiedAt}</div>` : ""}
+                        ${report.technicianContactedAt ? `<div class="admin-note">Teknisi dihubungi: ${report.technicianContactedAt}</div>` : ""}
+                      </td>
+                      <td>
+                        <div class="admin-actions">
+                          <select id="adminStatus_${report.ticket}">
+                            ${STATUS_CYCLE.map(status => `<option value="${status}" ${report.status === status ? "selected" : ""}>${status}</option>`).join("")}
+                          </select>
+                          <select id="adminTech_${report.ticket}">
+                            <option value="">Pilih Teknisi</option>
+                            ${TECHNICIANS.map(tech => `<option value="${tech.id}" ${report.assignedTechnicianId === tech.id ? "selected" : ""}>${tech.name}</option>`).join("")}
+                          </select>
+                          <input id="adminNotif_${report.ticket}" type="text" placeholder="Notifikasi maintenance ke pelapor" value="${escapeHtml(report.maintenanceNotification)}">
+                            <button class="btn secondary" onclick="applyAdminUpdate('${report.ticket}')"><i class="fa-solid fa-floppy-disk"></i> Simpan Penanganan</button>
+                            <button class="btn warning" onclick="notifyMaintenance('${report.ticket}')"><i class="fa-solid fa-bell"></i> Kirim Notifikasi</button>
+                            <button class="btn secondary" onclick="contactTechnician('${report.ticket}')"><i class="fa-solid fa-phone"></i> Hubungi Teknisi</button>
+                        </div>
+                      </td>
+                    </tr>
+                    `;
+      }).join("");
+    }
+
+    async function cycleStatus(ticket) {
+      if (!ensureAdminAccess()) return;
+
+      const report = reports.find(item => item.ticket === ticket);
+      if (!report) return;
+
+      const currentIdx = STATUS_CYCLE.indexOf(report.status);
+      const nextIdx = (currentIdx + 1) % STATUS_CYCLE.length;
+      const newStatus = STATUS_CYCLE[nextIdx];
+
+      try {
+        const { error } = await sb.from("reports").update({ status: newStatus }).eq("ticket", ticket);
+        if (error) {
+          console.warn("Supabase update failed, updating local data only:", error.message);
+        }
+
+        report.status = newStatus;
+        saveReports();
+        renderDashboard();
+        renderAdminReports();
+        showToast(`Status ${ticket} -> ${newStatus}`, true);
+      } catch (error) {
+        console.error("Error updating status:", error);
+        // Still update locally even if Supabase fails
+        report.status = newStatus;
+        saveReports();
+        renderDashboard();
+        renderAdminReports();
+        showToast(`Status ${ticket} -> ${newStatus} (lokal)`, true);
+      }
+    }
+
+    async function applyAdminUpdate(ticket) {
+      if (!ensureAdminAccess()) return;
+
+      const report = reports.find(item => item.ticket === ticket);
+      if (!report) return;
+
+      const statusEl = document.getElementById(`adminStatus_${ticket}`);
+      const techEl = document.getElementById(`adminTech_${ticket}`);
+      const notifEl = document.getElementById(`adminNotif_${ticket}`);
+
+      const newStatus = statusEl ? statusEl.value : report.status;
+      const newTechId = techEl ? techEl.value : report.assignedTechnicianId;
+      const newNotif = notifEl ? notifEl.value.trim() : report.maintenanceNotification;
+
+      try {
+        const { error } = await sb.from("reports").update({
+          status: newStatus,
+          assigned_technician_id: newTechId,
+          maintenance_notification: newNotif
+        }).eq("ticket", ticket);
+
+        if (error) {
+          console.warn("Supabase update failed, updating local data only:", error.message);
+        }
+
+        report.status = newStatus;
+        report.assignedTechnicianId = newTechId;
+        report.maintenanceNotification = newNotif;
+        saveReports();
+
+        renderDashboard();
+        renderAdminReports();
+        showToast(`Penanganan ${ticket} disimpan`, true);
+      } catch (error) {
+        console.error("Error updating report:", error);
+        // Still update locally even if Supabase fails
+        report.status = newStatus;
+        report.assignedTechnicianId = newTechId;
+        report.maintenanceNotification = newNotif;
+        saveReports();
+        renderDashboard();
+        renderAdminReports();
+        showToast(`Penanganan ${ticket} disimpan (lokal)`, true);
+      }
+    }
+
+    async function notifyMaintenance(ticket) {
+      if (!ensureAdminAccess()) return;
+
+      const report = reports.find(item => item.ticket === ticket);
+      if (!report) return;
+
+      const notifEl = document.getElementById(`adminNotif_${ticket}`);
+      const message = notifEl && notifEl.value.trim()
+        ? notifEl.value.trim()
+        : `Laporan ${ticket} sedang diproses tim maintenance.`;
+
+      const now = new Date();
+      const notifyTime = formatDateTime(now);
+
+      try {
+        const { error } = await sb.from("reports").update({
+          maintenance_notification: message,
+          maintenance_notified_at: notifyTime
+        }).eq("ticket", ticket);
+
+        if (error) {
+          console.warn("Supabase update failed, updating local data only:", error.message);
+        }
+
+        report.maintenanceNotification = message;
+        report.maintenanceNotifiedAt = notifyTime;
+        saveReports();
+
+        renderDashboard();
+        renderAdminReports();
+        showToast(`Notifikasi maintenance untuk ${ticket} terkirim`, true);
+      } catch (error) {
+        console.error("Error sending notification:", error);
+        // Still update locally even if Supabase fails
+        report.maintenanceNotification = message;
+        report.maintenanceNotifiedAt = notifyTime;
+        saveReports();
+        renderDashboard();
+        renderAdminReports();
+        showToast(`Notifikasi maintenance untuk ${ticket} terkirim (lokal)`, true);
+      }
+    }
+
+    async function contactTechnician(ticket) {
+      if (!ensureAdminAccess()) return;
+
+      const report = reports.find(item => item.ticket === ticket);
+      if (!report) return;
+
+      const techEl = document.getElementById(`adminTech_${ticket}`);
+      const techId = techEl ? techEl.value : report.assignedTechnicianId;
+      const technician = TECHNICIANS.find(tech => tech.id === techId);
+
+      if (!technician) {
+        showToast("Pilih teknisi dulu sebelum menghubungi", false);
+        return;
+      }
+
+      const now = new Date();
+      const contactTime = formatDateTime(now);
+
+      try {
+        const { error } = await sb.from("reports").update({
+          assigned_technician_id: technician.id,
+          technician_contacted_at: contactTime
+        }).eq("ticket", ticket);
+
+        if (error) {
+          console.warn("Supabase update failed, updating local data only:", error.message);
+        }
+
+        report.assignedTechnicianId = technician.id;
+        report.technicianContactedAt = contactTime;
+        saveReports();
+
+        const message = encodeURIComponent(
+          `Mohon bantuan tindak lanjut laporan ${ticket} untuk ${report.machineId} - ${report.machineName}. Status saat ini: ${report.status}.`
+        );
+        window.open(`https://wa.me/${technician.phone}?text=${message}`, "_blank");
+
+        renderAdminReports();
+        showToast(`Menghubungi teknisi ${technician.name}`, true);
+      } catch (error) {
+        console.error("Error contacting technician:", error);
+        // Still update locally even if Supabase fails
+        report.assignedTechnicianId = technician.id;
+        report.technicianContactedAt = contactTime;
+        saveReports();
+        renderAdminReports();
+        showToast(`Menghubungi teknisi ${technician.name} (lokal)`, true);
+      }
+    }
+
+    function exportReportsAsText() {
+      const data = getFilteredReports();
+      if (!data.length) {
+        showToast("Tidak ada data untuk diexport", false);
+        return;
+      }
+
+      const lines = [
+        "LAPORAN KERUSAKAN MESIN PRODUKSI",
+        `Waktu Export: ${formatDateTime(new Date())}`,
+        "=".repeat(60),
+      ];
+
+      data.forEach((report, index) => {
+        lines.push(
+          `#${index + 1} | ${report.ticket}`,
+          `Waktu     : ${report.createdAtText}`,
+          `Mesin     : ${report.machineId} - ${report.machineName}`,
+          `Area      : ${report.machineArea}`,
+          `Pelapor   : ${report.reporterName} (${report.employeeId})`,
+          `Jenis     : ${report.damageType}`,
+          `Keparahan : ${report.severity}`,
+          `Status    : ${report.status}`,
+          `Foto      : ${report.photoName}`,
+          `Deskripsi : ${report.description}`,
+          "-".repeat(60)
+        );
+      });
+
+      const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `laporan-kerusakan-${new Date().toISOString().slice(0, 10)}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      showToast("Export teks berhasil", true);
+    }
+
+    function formatDateTime(dateObj) {
+      const date = new Date(dateObj);
+      const day = String(date.getDate()).padStart(2, "0");
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const year = date.getFullYear();
+      const hours = String(date.getHours()).padStart(2, "0");
+      const minutes = String(date.getMinutes()).padStart(2, "0");
+      const seconds = String(date.getSeconds()).padStart(2, "0");
+      return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+    }
+
+    function severityEmoji(severity) {
+      if (severity === "Kritis") return "🔴";
+      if (severity === "Sedang") return "🟡";
+      return "🟢";
+    }
+
+    function showToast(message, success = true) {
+      toast.textContent = message;
+      toast.style.background = success ? "#13301f" : "#3a1a1a";
+      toast.style.color = success ? "#c8ffd8" : "#ffd0d0";
+      toast.style.borderColor = success ? "rgba(52, 199, 89, 0.5)" : "rgba(255, 59, 48, 0.5)";
+      toast.classList.add("show");
+      setTimeout(() => toast.classList.remove("show"), 2200);
+    }
+
+    function escapeHtml(text) {
+      return String(text)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    window.cycleStatus = cycleStatus;
+    window.applyAdminUpdate = applyAdminUpdate;
+    window.notifyMaintenance = notifyMaintenance;
+    window.contactTechnician = contactTechnician;
+    window.addEventListener("beforeunload", stopScanner);
+
+    init();
+  </script>
+</body>
+
+</html>
